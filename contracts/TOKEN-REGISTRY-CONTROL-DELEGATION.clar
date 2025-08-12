@@ -327,6 +327,12 @@
           token-record-missing-error
         )
       )
+      ;; Check if delegation already exists
+      (existing-delegation
+        (map-get? delegation-authorization-map
+          { token-record-id: token-record-id, delegated-principal: target-principal }
+        )
+      )
     )
 
     ;; ========== DELEGATION AUTHORIZATION ==========
@@ -337,9 +343,15 @@
     ;; Ensure only token owner can grant delegation permissions
     (asserts! (is-eq (get controlling-owner token-data) tx-sender) ownership-mismatch-error)
 
+    ;; Validate target principal is not the same as current owner (prevent self-delegation)
+    (asserts! (not (is-eq target-principal (get controlling-owner token-data))) delegation-unauthorized-error)
+
+    ;; Prevent duplicate delegations
+    (asserts! (is-none existing-delegation) registry-entry-exists-error)
+
     ;; ========== DELEGATION PERMISSION GRANT ==========
 
-    ;; Create or update delegation permission for target principal
+    ;; Create delegation permission for target principal
     (map-set delegation-authorization-map
       { token-record-id: token-record-id, delegated-principal: target-principal }
       { has-access-permission: true }
@@ -350,11 +362,11 @@
   )
 )
 
-;; Delegation permission revocation with secure access removal
+;; Delegation permission revocation with proper authorization checks
 (define-public (revoke-delegation-access (token-record-id uint) (target-principal principal))
   (let
     (
-      ;; Retrieve token data for ownership verification  
+      ;; Retrieve token data for ownership verification
       (token-data 
         (unwrap! 
           (map-get? token-control-registry { token-record-id: token-record-id })
@@ -371,6 +383,9 @@
     ;; Ensure only token owner can revoke delegation permissions
     (asserts! (is-eq (get controlling-owner token-data) tx-sender) ownership-mismatch-error)
 
+    ;; Prevent owner from revoking their own access (they always have access)
+    (asserts! (not (is-eq target-principal tx-sender)) delegation-unauthorized-error)
+
     ;; ========== DELEGATION PERMISSION REVOCATION ==========
 
     ;; Remove delegation permission for target principal
@@ -378,7 +393,7 @@
       { token-record-id: token-record-id, delegated-principal: target-principal }
     )
 
-    ;; Return successful delegation revocation confirmation
+    ;; Return successful revocation confirmation
     (ok true)
   )
 )
