@@ -337,6 +337,9 @@
     ;; Ensure only token owner can grant delegation permissions
     (asserts! (is-eq (get controlling-owner token-data) tx-sender) ownership-mismatch-error)
 
+    ;; Validate target principal is not the same as current owner (prevent redundant delegation)
+    (asserts! (not (is-eq target-principal tx-sender)) delegation-unauthorized-error)
+
     ;; ========== DELEGATION PERMISSION GRANT ==========
 
     ;; Create or update delegation permission for target principal
